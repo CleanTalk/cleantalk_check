@@ -1,8 +1,9 @@
 <?php
 
-require_once '../autoload.php';
+use CleanTalkCheck\CleanTalkCheck;
+require_once '../src/autoload.php';
 
-$cleanTalkCheck = new CleanTalkCheck\CleanTalkCheck('a3asa2aby9azazy');
+$cleanTalkCheck = new CleanTalkCheck('a3asa2aby9azazy');
 $verdict = $cleanTalkCheck
     ->setEventToken($_POST[$cleanTalkCheck::EVENT_TOKEN_FIELD_NAME]) //obligatory
     ->setFormStartTime($_POST[$cleanTalkCheck::FORM_START_TIME_FIELD_NAME]) //obligatory

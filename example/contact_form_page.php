@@ -1,8 +1,7 @@
 <?php
-
 use CleanTalkCheck\CleanTalkCheck;
+require_once('../src/autoload.php');
 
-require_once('../autoload.php');
 ?>
 <!DOCTYPE html>
 <html lang="en">

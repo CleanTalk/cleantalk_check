@@ -3,9 +3,9 @@
 namespace CleanTalkCheck;
 
 use CleanTalkCheck\CleanTalk\CleantalkVerdict;
-use CleanTalkCheck\CleanTalk\HTTP\Request;
 use CleanTalkCheck\CleanTalk\HTTP\CleantalkResponse;
 use CleanTalkCheck\CleanTalk\HTTP\Helper;
+use CleanTalkCheck\CleanTalk\HTTP\Request;
 
 class CleanTalkCheck
 {

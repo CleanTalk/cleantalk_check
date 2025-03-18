@@ -28,7 +28,7 @@ Here is an example of how to use the `CleanTalkCheck` class in a form handler:
 
 require_once '../autoload.php';
 
-$cleanTalkCheck = new CleanTalkCheck\CleanTalkCheck('your_access_key');
+$cleanTalkCheck = new \src\CleanTalkCheck\CleanTalkCheck('your_access_key');
 $verdict = $cleanTalkCheck
     ->setEventToken($_POST[$cleanTalkCheck::EVENT_TOKEN_FIELD_NAME])
     ->setFormStartTime($_POST[$cleanTalkCheck::FORM_START_TIME_FIELD_NAME])
