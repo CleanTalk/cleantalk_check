@@ -145,7 +145,7 @@ class CleanTalkCheck
     public function setEmail($email)
     {
         $this->fluidCallStack(__FUNCTION__);
-        $this->email = $email;
+        $this->email = is_string($email) ? $email : null;
         return $this;
     }
 
@@ -158,7 +158,7 @@ class CleanTalkCheck
     public function setNickName($nickname)
     {
         $this->fluidCallStack(__FUNCTION__);
-        $this->nickname = $nickname;
+        $this->nickname = is_string($nickname) ? $nickname : null;
         return $this;
     }
 
@@ -171,7 +171,7 @@ class CleanTalkCheck
     public function setMessage($message)
     {
         $this->fluidCallStack(__FUNCTION__);
-        $this->message = $message;
+        $this->message =  is_string($message) ? $message : null;
         return $this;
     }
 
@@ -184,6 +184,11 @@ class CleanTalkCheck
     public function setIP($ip = null)
     {
         $this->fluidCallStack(__FUNCTION__);
+        if (!Helper::ipValidate($ip)) {
+            $this->setImprovementSuggestion('critical', 'IP address is not valid, the value set form the request', 'setIP()');
+            $this->ip = Helper::ipGet();
+        }
+
         if (empty($ip)) {
             $this->ip = Helper::ipGet();
         } else {
@@ -301,11 +306,15 @@ class CleanTalkCheck
     /**
      * Get the CleanTalk request data.
      *
-     * @return false|string JSON encoded request data
+     * @return string JSON encoded request data
      */
     public function getCleanTalkRequestData()
     {
-        return json_decode($this->cleantalk_request_data);
+        if (empty($this->cleantalk_request_data)) {
+            return '';
+        }
+        $data = @json_decode($this->cleantalk_request_data);
+        return $data ?: '';
     }
 
     /**
@@ -465,8 +474,10 @@ class CleanTalkCheck
      */
     public function getImprovementSuggestions()
     {
+        if (empty($this->improvement_suggestions)) {
+            return array('Everything looks well!');
+        }
         ksort($this->improvement_suggestions, SORT_STRING);
-        $this->improvement_suggestions['last_error'] = $this->verdict->error;
         return $this->improvement_suggestions;
     }
 
@@ -533,7 +544,7 @@ class CleanTalkCheck
      * @param bool $warn_if_js_disabled Flag to include a warning if JavaScript is disabled
      * @return string HTML code
      */
-    public static function getFrontendHTMLCode($warn_if_js_disabled = true)
+    public static function getFrontendHTMLCode($warn_if_js_disabled = false)
     {
         $warn = $warn_if_js_disabled ? '<noscript><div>Please, enable JavaScript in the browser to process the form</div></noscript>' : '';
         $submittime_script = '
@@ -559,11 +570,15 @@ class CleanTalkCheck
         $array = array(
             'suggestions' => $this->getImprovementSuggestions(),
             'request_data' => $this->getCleanTalkRequestData(),
-            'verdict' => $this->verdict->getArray()
+            'verdict' => $this->verdict instanceof CleantalkVerdict ? $this->verdict->getArray() : null,
         );
 
+        if (empty($array['verdict'])) {
+            $array['verdict'] = 'Verdict is not processed. Maybe you forgot to call ->getVerdict() method before';
+        }
+
         if ($return_as_json) {
-            return  json_encode($array);
+            return @json_encode($array);
         }
 
         $suggestions = var_export($array['suggestions'], 1);
