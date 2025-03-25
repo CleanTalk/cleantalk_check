@@ -9,7 +9,7 @@
   },
   "autoload": {
     "psr-4": {
-      "CleanTalkCheck\\CleanTalkCheck\\": "src/"
+      "CleanTalkCheck\\": "src/CleanTalkCheck/"
     }
   },
   "authors": [
