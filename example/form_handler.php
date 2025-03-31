@@ -4,7 +4,11 @@ use CleanTalkCheck\CleanTalkCheck;
 require_once '../src/autoload.php';
 
 $cleanTalkCheck = new CleanTalkCheck('your_api_key');
-$verdict = $cleanTalkCheck->getVerdict();
+$verdict = $cleanTalkCheck
+    ->setNickName('nickname')
+    ->setMessage('I am a spammer')
+    ->setDoBlockNoJSVisitor()
+    ->getVerdict();
 
 $cleanTalkCheck->whatsWrong();
 

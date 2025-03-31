@@ -86,7 +86,7 @@ The `CleanTalkCheck` class is designed to interact with the CleanTalk API to che
 
 2. Get the access key from the CleanTalk website. If you do not have a key, [register the new account](https://cleantalk.org/register?utm_source=github&utm_medium=article&utm_campaign=instructions&utm_content=link&utm_term=create+account) or access dashboard to an [existing account](https://cleantalk.org/my?utm_source=github&utm_medium=referral&utm_campaign=bot_detector&utm_content=link&utm_term=dashboard) to get it.
 
-3. Use access key to initialize the `CleanTalkCheck` class. Set the required parameters and call the `getVerdict` method to get the verdict.
+3. Use access key to initialize the `CleanTalkCheck` class. Then call the `getVerdict` method to get the verdict.
 
    ```php
    require_once '../src/autoload.php';
@@ -101,7 +101,7 @@ The `CleanTalkCheck` class is designed to interact with the CleanTalk API to che
    die('Message sent');
    ```
    
-   Hint: if your form sends data via its own data container, use it instead of $_POST in appropriate methods.
+   Hint: By defaults, form data container is $_POST. If your form sends data via its own data container, call the method `setCustomFormDataContainer` to specify it. This method should be called before the `getVerdict` method and should contain the form POST data. 
    
    ```php
    $verdict = $cleanTalkCheck->setCustomFormDataContainer($your_array_variable)->getVerdict();
@@ -127,12 +127,20 @@ You can call the `whatsWrong` method to get suggestions for improving the filtra
 Note, the method works correct only after the `getVerdict` method is called.
 
 ```php
+$cleanTalkCheck = new CleanTalkCheck('your_api_key');
+$verdict = $cleanTalkCheck->getVerdict();
+//echoing the suggestions
 $cleanTalkCheck->whatsWrong();
 ```
 
 If the method called with no arguments, it returns suggestions via echo output.
 
 If called with `true` argument, it returns a JSON string, then you can collect it the way you want.
+
+```php
+//echoing the suggestions
+error_log($cleanTalkCheck->whatsWrong(true);
+```
 
 The content is:
 - Suggestion block, read the message and provide the required data
@@ -188,18 +196,29 @@ The content is:
 <details>
 <summary>Click to expand methods and descritpions</summary>
 
-* `setEventToken($event_token = null)`: Sets the event token parameter. If the event token is not set, the filtration **hardly** loses its effectiveness.
-* `setFormStartTime($form_start_time = null)`: Sets the form start time parameter. If the event token is not set, the filtration **hardly** loses its effectiveness.
-* `setIP($ip = null)`: Sets the IP address parameter. If the IP address is not set, the class will try to get it from the request.
-* `setEmail($email)`: Sets the email parameter.
-* `setNickName($nickname)`: Sets the nickname parameter.
-* `setMessage($message)`: Sets the message parameter. Recommended to use for contact forms.
+* `setEventToken($event_token = null)`: Sets the event token parameter. Use only if the token field is outside of data container.
+* `setFormStartTime($form_start_time = null)`: Sets the form start time parameter. Use only if the token field is outside of data container.
+* `setIP($ip = null)`: Sets the IP address parameter. Use only if IP detected incorrectly during testing.
+* `setEmail($email)`: By defaults, the module search the container data matching the email address regexp. Sets the visitor's email parameter if you prefer to set another data.
+* `setNickName($nickname)`: Sets the nickname parameter. Use to improve check quality.
+* `setMessage($message)`: Sets the message parameter. Recommended to use for contact forms. Improving the check quality.
 * `setDoBlockNoJSVisitor()`: Enables blocking of visitors without JavaScript.
 * * If visitor has no JS enabled, the required parameter `event_token` will not be set that causes loss filtration.
 * * Due above, if called, the class checks if the visitor has JavaScript enabled and block the request if not.
 * * If not called, the class does not check if the visitor has JavaScript enabled.
 * `useRegistrationCheck()`: Sets the method to check new user registration. Applies the appropriate CleanTalk filtration ruleset.
 * `useContactFormCheck()`: Sets the method to check contact form submissions. Applies the appropriate CleanTalk filtration ruleset.
+
+Any of the methods can be called as fluid interface in any order before `getVerdict()`.
+
+```php
+$cleanTalkCheck = new CleanTalkCheck('your_api_key');
+$verdict = $cleanTalkCheck
+    ->setNickName('nickname')
+    ->setMessage('I am a spammer')
+    ->setDoBlockNoJSVisitor()
+    ->getVerdict();
+```
 
 </details>
 
