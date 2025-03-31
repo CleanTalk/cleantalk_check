@@ -138,7 +138,7 @@ If the method called with no arguments, it returns suggestions via echo output.
 If called with `true` argument, it returns a JSON string, then you can collect it the way you want.
 
 ```php
-//echoing the suggestions
+//logging the suggestions
 error_log($cleanTalkCheck->whatsWrong(true);
 ```
 
