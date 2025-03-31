@@ -139,7 +139,7 @@ If called with `true` argument, it returns a JSON string, then you can collect i
 
 ```php
 //logging the suggestions
-error_log($cleanTalkCheck->whatsWrong(true);
+error_log($cleanTalkCheck->whatsWrong(true));
 ```
 
 The content is:
