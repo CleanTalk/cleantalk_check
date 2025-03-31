@@ -13,6 +13,7 @@ class CleanTalkCheck
     const BOT_DETECTOR_LIBRARY_URL = 'https://moderate.cleantalk.org/ct-bot-detector-wrapper.js';
     const EVENT_TOKEN_FIELD_NAME = 'ct_bot_detector_event_token';
     const FORM_START_TIME_FIELD_NAME = 'ct_form_start_time';
+    const EMAIL_ADDRESS_REGEXP = '/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/';
 
     /**
      * @var string Access key for CleanTalk API
@@ -79,193 +80,82 @@ class CleanTalkCheck
      * @var false|string CleanTalk request data in JSON format
      */
     private $cleantalk_request_data;
+
+    /**
+     * @var array Data container to get the data from the form, usually is $_POST
+     */
+    private $data_container;
+
+    /**
+     * ------------ Construction kit methods ------------
+     */
+
     /**
      * Constructor for the CleanTalkCheck class.
      *
      * @param string $accessKey Access key for CleanTalk API
      */
-
     public function __construct($accessKey)
     {
         $this->access_key = $accessKey;
         $this->verdict = new CleantalkVerdict();
-    }
-
-    /**
-     * Get the verdict from the CleanTalk API.
-     *
-     * @return CleantalkVerdict Verdict object with the result of the CleanTalk check
-     */
-    public function getVerdict()
-    {
-        $this->verifyData();
-
-        if ($this->verdict->error) {
-            return $this->beforeReturnVerdict();
+        //default data preparing
+        $this->data_container = $_POST;
+        if (isset($this->data_container[static::EVENT_TOKEN_FIELD_NAME])) {
+            $this->event_token = $this->data_container[static::EVENT_TOKEN_FIELD_NAME];
         }
-
-        if (empty($this->method_name)) {
-            $this->method_name = empty($this->message) ? 'check_newuser' : 'check_message';
+        if (isset($this->data_container[static::FORM_START_TIME_FIELD_NAME])) {
+            $this->form_start_time = $this->data_container[static::FORM_START_TIME_FIELD_NAME];
         }
+        $this->ip = Helper::ipGet();
+        $this->setEmailAutomatically();
+    }
 
-        $this->cleantalk_response = $this->getCleanTalkResponse();
-
-        if ($this->cleantalk_response->error) {
-            $this->verdict->error = 'CleanTalk moderate server error: ' . $this->cleantalk_response->error;
-            return $this->beforeReturnVerdict();
+    private function setEmailAutomatically()
+    {
+        foreach ($this->data_container as $_key => $value) {
+            if (preg_match(static::EMAIL_ADDRESS_REGEXP, $value)) {
+                $this->email = $value;
+                break;
+            }
         }
-
-        $this->verdict->allowed = $this->cleantalk_response->allow;
-        $this->verdict->comment = $this->cleantalk_response->comment;
-        $this->verdict->request_link = !empty($this->cleantalk_response->id)
-            ? 'https://cleantalk.org/my/show_requests?request_id=' . $this->cleantalk_response->id
-            : null
-        ;
-
-        return $this->beforeReturnVerdict();
     }
 
     /**
-     * Perform actions before returning the verdict.
-     *
-     * @return CleantalkVerdict Verdict object with the result of the CleanTalk check
+     * ------------ Frontend methods ------------
      */
-    private function beforeReturnVerdict()
+
+    /**
+     * Get the frontend HTML code for the CleanTalk bot detector.
+     *
+     * @param bool $warn_if_js_disabled Flag to include a warning if JavaScript is disabled
+     * @return string HTML code
+     */
+    public static function getFrontendHTMLCode($warn_if_js_disabled = false)
     {
-        $this->setImprovementSuggestions();
-        return $this->verdict;
+        $warn = $warn_if_js_disabled ? '<noscript><div>Please, enable JavaScript in the browser to process the form</div></noscript>' : '';
+        $submittime_script = '
+        <script>document.addEventListener(
+            "DOMContentLoaded", function() {
+                document.getElementsByName("ct_form_start_time")[0].value = Math.floor(Date.now() / 1000);
+            });
+        </script>
+        <input type="hidden" id="ct_form_start_time" name="ct_form_start_time" value="">
+        ';
+        $html = '<script src="%s"></script>%s%s';
+        return sprintf($html, static::BOT_DETECTOR_LIBRARY_URL, $warn, $submittime_script);
     }
 
     /**
-     * Set the email of the sender.
-     *
-     * @param string $email Email of the sender
-     * @return $this
+     * ------------ Internal processing methods ------------
      */
-    public function setEmail($email)
-    {
-        $this->fluidCallStack(__FUNCTION__);
-        $this->email = is_string($email) ? $email : null;
-        return $this;
-    }
-
-    /**
-     * Set the nickname of the sender.
-     *
-     * @param string $nickname Nickname of the sender
-     * @return $this
-     */
-    public function setNickName($nickname)
-    {
-        $this->fluidCallStack(__FUNCTION__);
-        $this->nickname = is_string($nickname) ? $nickname : null;
-        return $this;
-    }
-
-    /**
-     * Set the message content.
-     *
-     * @param string $message Message content
-     * @return $this
-     */
-    public function setMessage($message)
-    {
-        $this->fluidCallStack(__FUNCTION__);
-        $this->message =  is_string($message) ? $message : null;
-        return $this;
-    }
-
-    /**
-     * Set the IP address of the sender.
-     *
-     * @param string|null $ip IP address of the sender
-     * @return $this
-     */
-    public function setIP($ip = null)
-    {
-        $this->fluidCallStack(__FUNCTION__);
-        if (!Helper::ipValidate($ip)) {
-            $this->setImprovementSuggestion('critical', 'IP address is not valid, the value set form the request', 'setIP()');
-            $this->ip = Helper::ipGet();
-        }
-
-        if (empty($ip)) {
-            $this->ip = Helper::ipGet();
-        } else {
-            $this->ip = $ip;
-        }
-        //do collect ip from headers there
-        return $this;
-    }
-
-    /**
-     * Set the form start time.
-     *
-     * @param int|null $form_start_time Form start time
-     * @return $this
-     */
-    public function setFormStartTime($form_start_time = null)
-    {
-        $this->fluidCallStack(__FUNCTION__);
-        $this->form_start_time = (int)$form_start_time;
-        return $this;
-    }
-
-    /**
-     * Enable blocking of visitors without JavaScript.
-     *
-     * @return $this
-     */
-    public function setDoBlockNoJSVisitor()
-    {
-        $this->fluidCallStack(__FUNCTION__);
-        $this->block_no_js_visitor = true;
-        return $this;
-    }
-
-    /**
-     * Set the event token.
-     *
-     * @param string|null $event_token Event token
-     * @return $this
-     */
-    public function setEventToken($event_token = null)
-    {
-        $this->fluidCallStack(__FUNCTION__);
-        $this->event_token = $event_token;
-        return $this;
-    }
-
-    /**
-     * Use the registration check method.
-     *
-     * @return $this
-     */
-    public function useRegistrationCheck()
-    {
-        $this->fluidCallStack(__FUNCTION__);
-        $this->method_name = 'check_newuser';
-        return $this;
-    }
-
-    /**
-     * Use the contact form check method.
-     *
-     * @return $this
-     */
-    public function useContactFormCheck()
-    {
-        $this->fluidCallStack(__FUNCTION__);
-        $this->method_name = 'check_message';
-        return $this;
-    }
 
     /**
      * Get the response from the CleanTalk API.
      *
      * @return CleantalkResponse Response object from the CleanTalk API
      */
-    public function getCleanTalkResponse()
+    private function getCleanTalkResponse()
     {
         $http = new Request();
         $this->cleantalk_request_data = $this->prepareCleanTalkRequestData();
@@ -343,17 +233,268 @@ class CleanTalkCheck
     }
 
     /**
+     * Check if the access key is valid.
+     *
+     * @throws \Exception If the access key is invalid
+     */
+    private function checkAccessKey()
+    {
+        if (empty($this->access_key)) {
+            throw new \Exception('Access key is empty');
+        }
+
+        if (!is_string($this->access_key)) {
+            throw new \Exception('Access key is not a string');
+        }
+    }
+
+    /**
+     * Check if the event token is valid.
+     *
+     * @throws \Exception If the event token is invalid
+     */
+    private function checkEventToken()
+    {
+        if (empty($this->event_token)) {
+            throw new \Exception('Event token is empty');
+        }
+
+        if (!is_string($this->event_token)) {
+            throw new \Exception('Event token is not a string');
+        }
+
+        if (strlen($this->event_token) !== 64) {
+            throw new \Exception('Event token is not valid');
+        }
+    }
+
+    /**
+     * Perform actions before returning the verdict.
+     *
+     * @return CleantalkVerdict Verdict object with the result of the CleanTalk check
+     */
+    private function beforeReturnVerdict()
+    {
+        $this->setImprovementSuggestions();
+        return $this->verdict;
+    }
+
+    /**
+     * ------------ Fluid public calls ------------
+     */
+
+    /**
+     * Set the email of the sender.
+     *
+     * @param string $email Email of the sender
+     * @return $this
+     */
+    public function setEmail($email)
+    {
+        $this->fluidCallStack(__FUNCTION__);
+        $this->email = is_string($email) ? $email : null;
+        return $this;
+    }
+
+    /**
+     * Set the nickname of the sender.
+     *
+     * @param string $nickname Nickname of the sender
+     * @return $this
+     */
+    public function setNickName($nickname)
+    {
+        $this->fluidCallStack(__FUNCTION__);
+        $this->nickname = is_string($nickname) ? $nickname : null;
+        return $this;
+    }
+
+    /**
+     * Set the message content.
+     *
+     * @param string $message Message content
+     * @return $this
+     */
+    public function setMessage($message)
+    {
+        $this->fluidCallStack(__FUNCTION__);
+        $this->message =  is_string($message) ? $message : null;
+        return $this;
+    }
+
+    /**
+     * Set the IP address of the sender.
+     *
+     * @param string|null $ip IP address of the sender
+     * @return $this
+     */
+    public function setIP($ip = null)
+    {
+        $this->fluidCallStack(__FUNCTION__);
+        if (!Helper::ipValidate($ip)) {
+            $this->setImprovementSuggestion('critical', 'IP address is not valid, the value has been set form the request', 'setIP()');
+        } else {
+            $this->ip = $ip;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Set the form start time.
+     *
+     * @param int|null $form_start_time Form start time
+     * @return $this
+     */
+    public function setFormStartTime($form_start_time = null)
+    {
+        $this->fluidCallStack(__FUNCTION__);
+        $this->form_start_time = (int)$form_start_time;
+        return $this;
+    }
+
+    /**
+     * Enable blocking of visitors without JavaScript.
+     *
+     * @return $this
+     */
+    public function setDoBlockNoJSVisitor()
+    {
+        $this->fluidCallStack(__FUNCTION__);
+        $this->block_no_js_visitor = true;
+        return $this;
+    }
+
+    /**
+     * Set the event token.
+     *
+     * @param string|null $event_token Event token
+     * @return $this
+     */
+    public function setEventToken($event_token = null)
+    {
+        $this->fluidCallStack(__FUNCTION__);
+        $this->event_token = $event_token;
+        return $this;
+    }
+
+    /**
+     * Use the registration check method.
+     *
+     * @return $this
+     */
+    public function useRegistrationCheck()
+    {
+        $this->fluidCallStack(__FUNCTION__);
+        $this->method_name = 'check_newuser';
+        return $this;
+    }
+
+    /**
+     * Use the contact form check method.
+     *
+     * @return $this
+     */
+    public function useContactFormCheck()
+    {
+        $this->fluidCallStack(__FUNCTION__);
+        $this->method_name = 'check_message';
+        return $this;
+    }
+
+    /**
+     * Set own data container.
+     * @param $data_container
+     *
+     * @return $this
+     */
+    public function setCustomFormDataContainer($data_container)
+    {
+        $this->data_container = $data_container;
+        return $this;
+    }
+
+    /**
+     * Get the verdict from the CleanTalk API.
+     *
+     * @return CleantalkVerdict Verdict object with the result of the CleanTalk check
+     */
+    public function getVerdict()
+    {
+        $this->verifyData();
+
+        if ($this->verdict->error) {
+            return $this->beforeReturnVerdict();
+        }
+
+        if (empty($this->method_name)) {
+            $this->method_name = empty($this->message) ? 'check_newuser' : 'check_message';
+        }
+
+        $this->cleantalk_response = $this->getCleanTalkResponse();
+
+        if ($this->cleantalk_response->error) {
+            $this->verdict->error = 'CleanTalk moderate server error: ' . $this->cleantalk_response->error;
+            return $this->beforeReturnVerdict();
+        }
+
+        $this->verdict->allowed = $this->cleantalk_response->allow;
+        $this->verdict->comment = $this->cleantalk_response->comment;
+        $this->verdict->request_link = !empty($this->cleantalk_response->id)
+            ? 'https://cleantalk.org/my/show_requests?request_id=' . $this->cleantalk_response->id
+            : null
+        ;
+
+        return $this->beforeReturnVerdict();
+    }
+
+    /**
+     * ------------ Improvement suggestions feature ------------
+     */
+
+    /**
      * Set suggestions for improving the data quality.
      */
     private function setImprovementSuggestions()
     {
+        if ( $this->cleantalk_response instanceof CleantalkResponse ) {
+            if (empty($this->cleantalk_response->comment)) {
+                $this->setImprovementSuggestion(
+                    'critical',
+                    'Something is wrong with connection to the CleanTalk server ' . static::MODERATE_URL,
+                    'getCleanTalkResponse()'
+                );
+                return;
+            }
+            if ($this->cleantalk_response->error) {
+                $this->setImprovementSuggestion(
+                    'critical',
+                    'Please, check the error message from the CleanTalk server',
+                    'getCleanTalkResponse()'
+                );
+                return;
+            }
+            if ($this->cleantalk_response->account_status !== 1) {
+                $this->setImprovementSuggestion(
+                    'critical',
+                    'Something wrong with your CleanTalk license, visit your CleanTalk dashboard to check the license status',
+                    'getCleanTalkResponse()'
+                );
+                return;
+            }
+        }
+
+        if (!empty($this->verdict->error)) {
+            $this->setImprovementSuggestion('critical', 'Error occurred due the CleanTalk check: ' . $this->verdict->error);
+        }
+
         if (empty($this->ip)) {
             $fluid_method = 'setIP';
             $stack = !$this->fluidCallExist($fluid_method)
                 ? "interface method ->$fluid_method() has not been called"
-                : "interface method ->$fluid_method() has been called, but provided var is invalid";
+                : "interface method ->$fluid_method() has been called, but provided var is invalid or automatic IP get has failed";
             $this->setImprovementSuggestion(
-                'critical',
+                'average',
                 'Please, provide the visitor IP address to improve check quality.',
                 $stack
             );
@@ -362,7 +503,7 @@ class CleanTalkCheck
         if (empty($this->form_start_time)) {
             $fluid_method = 'setFormStartTime';
             $stack = !$this->fluidCallExist($fluid_method)
-                ? "interface method ->$fluid_method() has not been called"
+                ? "interface method ->$fluid_method() has not been called, make sure the form data contains the field " . static::FORM_START_TIME_FIELD_NAME
                 : "interface method ->$fluid_method() has been called, but provided var is invalid";
             $this->setImprovementSuggestion(
                 'critical',
@@ -374,7 +515,7 @@ class CleanTalkCheck
         if (empty($this->event_token)) {
             $fluid_method = 'setEventToken';
             $stack = !$this->fluidCallExist($fluid_method)
-                ? "interface method ->$fluid_method() has not been called"
+                ? "interface method ->$fluid_method() has not been called, make sure the form data contains the field " . static::EVENT_TOKEN_FIELD_NAME
                 : "interface method ->$fluid_method() has been called, but provided var is invalid";
             $common_token_message = 'Event token is not provided. Most likely the visitor has JavaScript disabled.';
             $this->setImprovementSuggestion('critical', $common_token_message, $stack);
@@ -396,23 +537,6 @@ class CleanTalkCheck
                 'Please, provide the access key via constructor call ' . __CLASS__ . '()',
                 'construct()'
             );
-        }
-
-        if ( $this->cleantalk_response instanceof CleantalkResponse ) {
-            if ($this->cleantalk_response->error) {
-                $this->setImprovementSuggestion(
-                    'critical',
-                    'Please, check the error message from the CleanTalk server',
-                    'getCleanTalkResponse()'
-                );
-            }
-            if ($this->cleantalk_response->account_status !== 1) {
-                $this->setImprovementSuggestion(
-                    'critical',
-                    'Something wrong with your CleanTalk license, visit your CleanTalk dashboard to check the license status',
-                    'getCleanTalkResponse()'
-                );
-            }
         }
 
         if (empty($this->email)) {
@@ -472,49 +596,13 @@ class CleanTalkCheck
      *
      * @return array Improvement suggestions
      */
-    public function getImprovementSuggestions()
+    private function getImprovementSuggestions()
     {
         if (empty($this->improvement_suggestions)) {
             return array('Everything looks well!');
         }
         ksort($this->improvement_suggestions, SORT_STRING);
         return $this->improvement_suggestions;
-    }
-
-    /**
-     * Check if the access key is valid.
-     *
-     * @throws \Exception If the access key is invalid
-     */
-    private function checkAccessKey()
-    {
-        if (empty($this->access_key)) {
-            throw new \Exception('Access key is empty');
-        }
-
-        if (!is_string($this->access_key)) {
-            throw new \Exception('Access key is not a string');
-        }
-    }
-
-    /**
-     * Check if the event token is valid.
-     *
-     * @throws \Exception If the event token is invalid
-     */
-    private function checkEventToken()
-    {
-        if (empty($this->event_token)) {
-            throw new \Exception('Event token is empty');
-        }
-
-        if (!is_string($this->event_token)) {
-            throw new \Exception('Event token is not a string');
-        }
-
-        if (strlen($this->event_token) !== 64) {
-            throw new \Exception('Event token is not valid');
-        }
     }
 
     /**
@@ -536,27 +624,6 @@ class CleanTalkCheck
     private function fluidCallExist($method)
     {
         return in_array($method, $this->fluid_call_stack);
-    }
-
-    /**
-     * Get the frontend HTML code for the CleanTalk bot detector.
-     *
-     * @param bool $warn_if_js_disabled Flag to include a warning if JavaScript is disabled
-     * @return string HTML code
-     */
-    public static function getFrontendHTMLCode($warn_if_js_disabled = false)
-    {
-        $warn = $warn_if_js_disabled ? '<noscript><div>Please, enable JavaScript in the browser to process the form</div></noscript>' : '';
-        $submittime_script = '
-        <script>document.addEventListener(
-            "DOMContentLoaded", function() {
-                document.getElementsByName("ct_form_start_time")[0].value = Math.floor(Date.now() / 1000);
-            });
-        </script>
-        <input type="hidden" id="ct_form_start_time" name="ct_form_start_time" value="">
-        ';
-        $html = '<script src="%s"></script>%s%s';
-        return sprintf($html, static::BOT_DETECTOR_LIBRARY_URL, $warn, $submittime_script);
     }
 
     /**
@@ -589,4 +656,5 @@ class CleanTalkCheck
         echo "<div>Verdict<pre>$verdict</pre></div>";
         return '';
     }
+
 }

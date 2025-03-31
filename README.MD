@@ -44,7 +44,6 @@ The `CleanTalkCheck` class is designed to interact with the CleanTalk API to che
 
 - [Frontend Part](#frontend-part)
 - [Backend Part](#backend-part)
-- [Methods](#methods)
 - [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
 
@@ -93,55 +92,31 @@ The `CleanTalkCheck` class is designed to interact with the CleanTalk API to che
    require_once '../src/autoload.php';
    
    $cleanTalkCheck = new \src\CleanTalkCheck\CleanTalkCheck('your_access_key');
-   $verdict = $cleanTalkCheck
-       ->setEventToken($_POST[$cleanTalkCheck::EVENT_TOKEN_FIELD_NAME])
-       ->setFormStartTime($_POST[$cleanTalkCheck::FORM_START_TIME_FIELD_NAME])
-       ->setIP() //if you have your own method to get IP address, pass the string of IP address to the method
-       ->setEmail($_POST['email'])
-       ->setNickName($_POST['username'])
-       ->setMessage($_POST['message'])
-       ->useContactFormCheck()
-       ->setDoBlockNoJSVisitor()
-       ->getVerdict();
+   $verdict = $cleanTalkCheck->getVerdict();
    
-   if (!$verdict->error && !$verdict->allowed) {
+   if (!$verdict->allowed) {
       die('Message blocked: ' . $verdict->comment);
    }
    
    die('Message sent');
    ```
-Hint: if your form sends data via its own data container, use it instead of $_POST in appropriate methods.
+   
+   Hint: if your form sends data via its own data container, use it instead of $_POST in appropriate methods.
+   
+   ```php
+   $verdict = $cleanTalkCheck->setCustomFormDataContainer($your_array_variable)->getVerdict();
+   ```
 
 5. The method `getVerdict` returns an object with the following properties:
     - `error`: A boolean indicating whether an error occurred.
     - `allowed`: A boolean indicating whether the message is allowed.
     - `comment`: A string containing the reason for blocking the message.
     - `request_link`: A string containing the CleanTalk request link. The request is available in your dashboard within 5 minutes after the request is sent.
-6. Use the `$verdict->error` property to determine if CleanTalk check is completed correctly.
 7. Use the `$verdict->allowed` property to determine whether to allow the message to be sent or perform any other logic you need.
 8. The final backend code may look like the [example](example/form_handler.php).
 
 That's all. The class is ready to use. 
 
-You can read about method and testing features in the next sections.
-
-### Methods
-* `__construct($accessKey)`: Initializes the class with an access key.
-* `getVerdict()`: Verifies data, sends a request to CleanTalk, and returns the verdict.
-* `setEventToken($event_token = null)`: Sets the event token parameter. If the event token is not set, the filtration **hardly** loses its effectiveness.
-* `setFormStartTime($form_start_time = null)`: Sets the form start time parameter. If the event token is not set, the filtration **hardly** loses its effectiveness.
-* `setIP($ip = null)`: Sets the IP address parameter. If the IP address is not set, the class will try to get it from the request.
-* `setEmail($email)`: Sets the email parameter.
-* `setNickName($nickname)`: Sets the nickname parameter.
-* `setMessage($message)`: Sets the message parameter. Recommended to use for contact forms.
-* `setDoBlockNoJSVisitor()`: Enables blocking of visitors without JavaScript.
-* * If visitor has no JS enabled, the required parameter `event_token` will not be set that causes loss filtration.
-* * Due above, if called, the class checks if the visitor has JavaScript enabled and block the request if not.
-* * If not called, the class does not check if the visitor has JavaScript enabled.
-* `useRegistrationCheck()`: Sets the method to check new user registration. Applies the appropriate CleanTalk filtration ruleset.
-* `useContactFormCheck()`: Sets the method to check contact form submissions. Applies the appropriate CleanTalk filtration ruleset.
-* `getFrontendHTMLCode($warn_if_js_disabled = true)`: Returns HTML code to include the CleanTalk scripts and tags. Pass `true` if you want to warn visitor about JS disabled.
-* `whatsWrong($return_as_json = false)`: Returns suggestions for improving the filtration quality.
 
 ### Testing
 
@@ -163,6 +138,9 @@ The content is:
 - Suggestion block, read the message and provide the required data
 - Request data block, the data that was sent to the CleanTalk server
 - Verdict block, the verdict of the request
+
+<details>
+<summary>Click to see example JSON</summary>
 
 ```json
 {
@@ -204,17 +182,38 @@ The content is:
 }
 ```
 
+</details>
+
+### Additional Methods
+<details>
+<summary>Click to expand methods and descritpions</summary>
+
+* `setEventToken($event_token = null)`: Sets the event token parameter. If the event token is not set, the filtration **hardly** loses its effectiveness.
+* `setFormStartTime($form_start_time = null)`: Sets the form start time parameter. If the event token is not set, the filtration **hardly** loses its effectiveness.
+* `setIP($ip = null)`: Sets the IP address parameter. If the IP address is not set, the class will try to get it from the request.
+* `setEmail($email)`: Sets the email parameter.
+* `setNickName($nickname)`: Sets the nickname parameter.
+* `setMessage($message)`: Sets the message parameter. Recommended to use for contact forms.
+* `setDoBlockNoJSVisitor()`: Enables blocking of visitors without JavaScript.
+* * If visitor has no JS enabled, the required parameter `event_token` will not be set that causes loss filtration.
+* * Due above, if called, the class checks if the visitor has JavaScript enabled and block the request if not.
+* * If not called, the class does not check if the visitor has JavaScript enabled.
+* `useRegistrationCheck()`: Sets the method to check new user registration. Applies the appropriate CleanTalk filtration ruleset.
+* `useContactFormCheck()`: Sets the method to check contact form submissions. Applies the appropriate CleanTalk filtration ruleset.
+
+</details>
+
 ### Troubleshooting
 - Make sure that all the methods are called in the correct order, the method `getVerdict` should be called last.
 - Make sure that the `getFrontendHTMLCode` method is called in the correct place in the form.
 - Make sure that the CleanTalk service HTML tags is placed on the form correctly. 
 - Make sure that the form handler file is receiving the data from the form correctly.
 
-## Examples
+### Examples
 Examples can be found in the [/example](example) folder.
 
-## Contributing
+### Contributing
 Do not hesitate to contribute to the project. You can report bugs, suggest improvements, or add new features.
 
-## Contact
+### Contact
 If you have any questions or suggestions, please contact us via [email](mailto:support@cleantalk.org)
